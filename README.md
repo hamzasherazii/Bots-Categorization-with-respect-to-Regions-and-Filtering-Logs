@@ -210,8 +210,7 @@ server {
 
 ##  Bot Traffic Analyzer Script (Decorated Bash)
 
-Below is a ready-to-run Bash script 
-categorization.
+Below is a ready-to-run Bash script for analyzing bot traffic with beautifully formatted tables and region categorization.
 
 Save it as `bot_analysis.sh`:
 
@@ -229,69 +228,68 @@ MAGENTA='\e[35m'
 RESET='\e[0m'
 
 print_box_top() {
-  printf "┌─────────────────────────
+  printf "┌───────────────────────────────────────────────┐\n"
   printf "│  %-43s│\n" "$1"
-  printf "└─────────────────────────
+  printf "└───────────────────────────────────────────────┘\n"
 }
 
 # ──────────────────────────────
 # SECTION 1: BOT STATUS
 # ──────────────────────────────
 echo -e "${CYAN}"
-print_box_top "🔍 SECTION 1: BOT STA
+print_box_top "🔍 SECTION 1: BOT STATUS"
 echo -e "${RESET}"
 
-bot_count=$(grep -iE "bot|crawl|spid
+bot_count=$(grep -iE "bot|crawl|spider" "$LOG_FILE" | wc -l)
 
 # Table header
-printf "┌─────────────┬─────────────
-printf "│ %-11s │ %-18s │\n" "BOT ST
-echo -e "${RED}NO BOTS DETECTED${RES
-printf "└─────────────┴─────────────
+printf "┌─────────────┬────────────────────┐\n"
+printf "│ %-11s │ %-18s │\n" "BOT STATUS" "$( [ "$bot_count" -gt 0 ] && echo -e "${GREEN}DETECTED${RESET}" || echo -e "${RED}NO BOTS DETECTED${RESET}")"
+printf "└─────────────┴────────────────────┘\n"
 
 # ──────────────────────────────
 # SECTION 2: ALL REQUESTS
 # ──────────────────────────────
 echo -e "\n${MAGENTA}"
-print_box_top "📊 SECTION 2: ALL REQ
+print_box_top "📊 SECTION 2: ALL REQUESTS (including bots)"
 echo -e "${RESET}"
 
-printf "┌──────────────────────┬────
-printf "│ %-20s │ %-13s │ %-13s │ %-
-printf "├──────────────────────┼────
+printf "┌──────────────────────┬───────────────┬───────────────┬─────────────────────────────────────────────┐\n"
+printf "│ %-20s │ %-13s │ %-13s │ %-41s │\n" "Time & Date" "Bytes" "Bits" "IP Address / Bot Name"
+printf "├──────────────────────┼───────────────┼───────────────┼─────────────────────────────────────────────┤\n"
 
 total=0
 while read -r line; do
-  ip=$(echo "$line" | awk '{print $1
-  datetime=$(echo "$line" | awk '{pr
-  bytes=$(echo "$line" | awk '{print
+  ip=$(echo "$line" | awk '{print $1}')
+  datetime=$(echo "$line" | awk '{print $4}' | tr -d '[')
+  bytes=$(echo "$line" | awk '{print $10}')
   bits=$((bytes * 8))
-  agent=$(echo "$line" | grep -oP '"
+  agent=$(echo "$line" | grep -oP '"[^"]*" "[^"]*"' | awk -F"\"" '{print $4}')
   agent=${agent:-"-"}
-  printf "│ %-20s │ %-13s │ %-13s │ 
+  printf "│ %-20s │ %-13s │ %-13s │ %-41s │\n" "$datetime" "$bytes" "$bits" "$ip / $agent"
   total=$((total + 1))
 done < "$LOG_FILE"
 
-printf "└──────────────────────┴────
-printf "${YELLOW}Total Requests: $to
+printf "└──────────────────────┴───────────────┴───────────────┴─────────────────────────────────────────────┘\n"
+printf "${YELLOW}Total Requests: $total${RESET}\n"
 
 # ──────────────────────────────
 # SECTION 3: BOT REQUESTS
 # ──────────────────────────────
 echo -e "\n${CYAN}"
-print_box_top "🤖 SECTION 3: BOT REQ
+print_box_top "🤖 SECTION 3: BOT REQUESTS ONLY (via geoiplookup)"
 echo -e "${RESET}"
 
-good_us_eu_bots=("Googlebot" "Bingbo
-aggressive_us_eu_bots=("AhrefsBot" "
-good_cn_bots=("Baiduspider" "Sogou" 
-aggressive_cn_bots=("360Spider" "Yis
+good_us_eu_bots=("Googlebot" "Bingbot" "DuckDuckBot")
+aggressive_us_eu_bots=("AhrefsBot" "SemrushBot" "YandexBot" "DotBot" "MJ12bot" "PetalBot")
+good_cn_bots=("Baiduspider" "Sogou" "Bytespider")
+aggressive_cn_bots=("360Spider" "YisouSpider" "EasouSpider")
 
 is_in_list() {
   local item=$1
   shift
   for elem in "$@"; do
-    [[ "$elem" == "$item" ]] && retu
+    [[ "$elem" == "$item" ]] && return 0
   done
   return 1
 }
@@ -302,58 +300,51 @@ analyze_bot_row() {
   datetime=$3
   bytes=$4
   bits=$5
-  country_raw=$(geoiplookup "$ip" | 
+  country_raw=$(geoiplookup "$ip" | awk -F: '{print $2}' | xargs)
   country=${country_raw:-Unknown}
   region_useu="N/A"
   region_china="N/A"
 
-  if [[ "$country" =~ "United States
-"UK" || "$country" =~ "Netherlands
-    if is_in_list "$agent_name" "${g
+  if [[ "$country" =~ "United States" || "$country" =~ "Germany" || "$country" =~ "France" || "$country" =~ "UK" || "$country" =~ "Netherlands" ]]; then
+    if is_in_list "$agent_name" "${good_us_eu_bots[@]}"; then
       region_useu="USEFUL"
-    elif is_in_list "$agent_name" "$
+    elif is_in_list "$agent_name" "${aggressive_us_eu_bots[@]}"; then
       region_useu="AGGRESSIVE"
     else
       region_useu="AGGRESSIVE"
     fi
   fi
 
-  if [[ "$country" =~ "China" ]]; th
-    if is_in_list "$agent_name" "${g
+  if [[ "$country" =~ "China" ]]; then
+    if is_in_list "$agent_name" "${good_cn_bots[@]}"; then
       region_china="USEFUL"
-    elif is_in_list "$agent_name" "$
+    elif is_in_list "$agent_name" "${aggressive_cn_bots[@]}"; then
       region_china="AGGRESSIVE"
     else
       region_china="AGGRESSIVE"
     fi
   fi
 
-  printf "│ %-15s │ %-15s │ %-13s │ 
-    "$agent_name" "$ip" "$bytes ($bi
+  printf "│ %-15s │ %-15s │ %-13s │ %-20s │ %-18s │ %-19s │ %-17s │\n" \
+    "$agent_name" "$ip" "$bytes ($bits)" "$datetime" "$country" "$region_useu" "$region_china"
 }
 
-printf 
-"┌─────────────────┬────────────────
-────────┬──────────────────────┐\n"
-printf "│ %-15s │ %-15s │ %-13s │ %-
-  "Bot Name" "IP Address" "Bytes (Bi
-printf 
-"├─────────────────┼────────────────
-────────┼──────────────────────┤\n"
+printf "┌─────────────────┬─────────────────┬───────────────┬──────────────────────┬────────────────────┬───────────────────────┬──────────────────────┐\n"
+printf "│ %-15s │ %-15s │ %-13s │ %-20s │ %-18s │ %-19s │ %-17s │\n" \
+  "Bot Name" "IP Address" "Bytes (Bits)" "Time & Date" "Country" "US/EU Relevance" "China Relevance"
+printf "├─────────────────┼─────────────────┼───────────────┼──────────────────────┼────────────────────┼───────────────────────┼──────────────────────┤\n"
 
-grep -iE "bot|crawl|spider" "$LOG_FI
-  ip=$(echo "$line" | awk '{print $1
-  datetime=$(echo "$line" | awk '{pr
-  bytes=$(echo "$line" | awk '{print
+grep -iE "bot|crawl|spider" "$LOG_FILE" | while read -r line; do
+  ip=$(echo "$line" | awk '{print $1}')
+  datetime=$(echo "$line" | awk '{print $4}' | tr -d '[')
+  bytes=$(echo "$line" | awk '{print $10}')
   bits=$((bytes * 8))
-  agent=$(echo "$line" | grep -oP '"
-  agent_name=$(echo "$agent" | cut -
-  analyze_bot_row "$ip" "$agent_name
+  agent=$(echo "$line" | grep -oP '"[^"]*" "[^"]*"' | awk -F"\"" '{print $4}')
+  agent_name=$(echo "$agent" | cut -d/ -f1 | awk '{print $1}')
+  analyze_bot_row "$ip" "$agent_name" "$datetime" "$bytes" "$bits"
 done
 
-printf 
-"└─────────────────┴────────────────
-────────┴──────────────────────┘\n"
+printf "└─────────────────┴─────────────────┴───────────────┴──────────────────────┴────────────────────┴───────────────────────┴──────────────────────┘\n"
 ````
 
 To run:
