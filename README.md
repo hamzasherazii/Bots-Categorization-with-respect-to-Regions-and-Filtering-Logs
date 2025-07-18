@@ -33,6 +33,7 @@ flowchart TD
 
 ---
 
+
 ## 1. Connect to EC2 and Find Logs
 
 ### Connect to Your EC2 Server
@@ -206,6 +207,164 @@ server {
 ```
 
 ---
+
+##  Bot Traffic Analyzer Script (Decorated Bash)
+
+Below is a ready-to-run Bash script 
+categorization.
+
+Save it as `bot_analysis.sh`:
+
+````bash
+#!/bin/bash
+
+LOG_FILE="/var/log/nginx/access.log"
+
+# Colors
+GREEN='\e[32m'
+RED='\e[31m'
+CYAN='\e[36m'
+YELLOW='\e[33m'
+MAGENTA='\e[35m'
+RESET='\e[0m'
+
+print_box_top() {
+  printf "┌─────────────────────────
+  printf "│  %-43s│\n" "$1"
+  printf "└─────────────────────────
+}
+
+# ──────────────────────────────
+# SECTION 1: BOT STATUS
+# ──────────────────────────────
+echo -e "${CYAN}"
+print_box_top "🔍 SECTION 1: BOT STA
+echo -e "${RESET}"
+
+bot_count=$(grep -iE "bot|crawl|spid
+
+# Table header
+printf "┌─────────────┬─────────────
+printf "│ %-11s │ %-18s │\n" "BOT ST
+echo -e "${RED}NO BOTS DETECTED${RES
+printf "└─────────────┴─────────────
+
+# ──────────────────────────────
+# SECTION 2: ALL REQUESTS
+# ──────────────────────────────
+echo -e "\n${MAGENTA}"
+print_box_top "📊 SECTION 2: ALL REQ
+echo -e "${RESET}"
+
+printf "┌──────────────────────┬────
+printf "│ %-20s │ %-13s │ %-13s │ %-
+printf "├──────────────────────┼────
+
+total=0
+while read -r line; do
+  ip=$(echo "$line" | awk '{print $1
+  datetime=$(echo "$line" | awk '{pr
+  bytes=$(echo "$line" | awk '{print
+  bits=$((bytes * 8))
+  agent=$(echo "$line" | grep -oP '"
+  agent=${agent:-"-"}
+  printf "│ %-20s │ %-13s │ %-13s │ 
+  total=$((total + 1))
+done < "$LOG_FILE"
+
+printf "└──────────────────────┴────
+printf "${YELLOW}Total Requests: $to
+
+# ──────────────────────────────
+# SECTION 3: BOT REQUESTS
+# ──────────────────────────────
+echo -e "\n${CYAN}"
+print_box_top "🤖 SECTION 3: BOT REQ
+echo -e "${RESET}"
+
+good_us_eu_bots=("Googlebot" "Bingbo
+aggressive_us_eu_bots=("AhrefsBot" "
+good_cn_bots=("Baiduspider" "Sogou" 
+aggressive_cn_bots=("360Spider" "Yis
+
+is_in_list() {
+  local item=$1
+  shift
+  for elem in "$@"; do
+    [[ "$elem" == "$item" ]] && retu
+  done
+  return 1
+}
+
+analyze_bot_row() {
+  ip=$1
+  agent_name=$2
+  datetime=$3
+  bytes=$4
+  bits=$5
+  country_raw=$(geoiplookup "$ip" | 
+  country=${country_raw:-Unknown}
+  region_useu="N/A"
+  region_china="N/A"
+
+  if [[ "$country" =~ "United States
+"UK" || "$country" =~ "Netherlands
+    if is_in_list "$agent_name" "${g
+      region_useu="USEFUL"
+    elif is_in_list "$agent_name" "$
+      region_useu="AGGRESSIVE"
+    else
+      region_useu="AGGRESSIVE"
+    fi
+  fi
+
+  if [[ "$country" =~ "China" ]]; th
+    if is_in_list "$agent_name" "${g
+      region_china="USEFUL"
+    elif is_in_list "$agent_name" "$
+      region_china="AGGRESSIVE"
+    else
+      region_china="AGGRESSIVE"
+    fi
+  fi
+
+  printf "│ %-15s │ %-15s │ %-13s │ 
+    "$agent_name" "$ip" "$bytes ($bi
+}
+
+printf 
+"┌─────────────────┬────────────────
+────────┬──────────────────────┐\n"
+printf "│ %-15s │ %-15s │ %-13s │ %-
+  "Bot Name" "IP Address" "Bytes (Bi
+printf 
+"├─────────────────┼────────────────
+────────┼──────────────────────┤\n"
+
+grep -iE "bot|crawl|spider" "$LOG_FI
+  ip=$(echo "$line" | awk '{print $1
+  datetime=$(echo "$line" | awk '{pr
+  bytes=$(echo "$line" | awk '{print
+  bits=$((bytes * 8))
+  agent=$(echo "$line" | grep -oP '"
+  agent_name=$(echo "$agent" | cut -
+  analyze_bot_row "$ip" "$agent_name
+done
+
+printf 
+"└─────────────────┴────────────────
+────────┴──────────────────────┘\n"
+````
+
+To run:
+
+```bash
+chmod +x bot_analysis.sh
+./bot_analysis.sh
+```
+
+---
+
 
 ## 6. Final Notes
 
