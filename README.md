@@ -1,33 +1,53 @@
-# Bot Traffic Analysis on LEMP WordPress
+# Bot Traffic Analysis on LEMP WordPress EC2 Server
 
 ## Introduction
 
-This report covers the analysis of bot traffic on a WordPress website hosted on an EC2 instance using the LEMP (Linux, Nginx, MySQL, PHP) stack. The goal is to:
+This guide explains how to check and understand bot traffic on a WordPress website running on an EC2 server with the LEMP stack (Linux, Nginx, MySQL, PHP). We'll:
 
-1. Detect whether bots are accessing the website.
-2. Format and extract specific log data.
-3. Identify useful and aggressive bots, particularly for the US, Europe, and China regions.
-4. Recommend bot filtering strategies.
+1. See if bots are visiting your site.
+2. Collect and format log information.
+3. Find out which bots are helpful or harmful, especially for the US, Europe, and China.
+4. Suggest ways to handle bad or unnecessary bots.
 
 ---
 
-## 1. Prerequisites and Environment Setup
+## 🗂️ Flowchart Overview
 
-Ensure you are connected to your EC2 instance via SSH.
+```mermaid
+flowchart TD
+    A[Start: Analyze Bot Traffic] --> B[Connect to EC2 Instance]
+    B --> C[Open Nginx Access Logs]
+    C --> D[Look for Bot User-Agents]
+    D --> E[Extract Data: Time, Bytes, IPs, Bots]
+    E --> F[Check Which Regions Bots Come From]
+    F --> G1[US & Europe Bots]
+    F --> G2[China Bots]
+    G1 --> H1[Find Good vs Bad Bots]
+    G2 --> H2[Find Good vs Bad Bots]
+    H1 --> I[Take Action: Block or Allow Bots]
+    H2 --> I
+    I --> J[Done]
+```
+
+---
+
+## 1. Connect to EC2 and Find Logs
+
+### Connect to Your EC2 Server
 
 ```bash
 ssh -i your-key.pem ubuntu@your-ec2-public-ip
 ```
 
-### Log File Location
+### Find Nginx Log File
 
-Nginx access logs are usually located at:
+The main access log is usually at:
 
 ```bash
 /var/log/nginx/access.log
 ```
 
-If your virtual host is configured with a custom access log, verify it in the virtual host configuration:
+If your Nginx site is using a custom log path, check it in your config file:
 
 ```bash
 sudo nano /etc/nginx/sites-available/your-site
@@ -41,37 +61,32 @@ access_log /var/log/nginx/your-site-access.log;
 
 ---
 
-## 2. Checking for Bot Access
+## 2. Check If Bots Are Visiting
 
-### 2.1 Checking for Bot Calls
+### Search for Bot Requests
 
-Search your logs for common bots by User-Agent strings. Run:
+Use this command:
 
 ```bash
 grep -i "bot\|crawl\|spider" /var/log/nginx/access.log | less
 ```
 
-This command looks for lines containing the words "bot", "crawl", or "spider" (common in bot User-Agents).
+This looks for common words in bot user agents like "bot", "crawl", or "spider".
 
-### 2.2 Sample Output Breakdown
-
-Example log line:
+### Example Log Line Explained
 
 ```
 66.249.66.1 - - [18/Jul/2025:10:20:50 +0000] "GET / HTTP/1.1" 200 1024 "-" "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 ```
 
-**Explanation:**
-
 - IP Address: `66.249.66.1`
-- Date and Time: `18/Jul/2025:10:20:50 +0000`
-- Status Code: `200`
-- Size: `1024` bytes
-- User-Agent: `Googlebot`
+- Date/Time: `18/Jul/2025:10:20:50`
+- Bytes Sent: `1024`
+- User Agent: `Googlebot`
 
 ---
 
-## 3. Extracting & Formatting Required Data
+## 3. Get Key Info From Logs
 
 ### 3.1 Time and Date
 
@@ -79,81 +94,77 @@ Example log line:
 awk '{print $4}' /var/log/nginx/access.log | tr -d '[' | sort | uniq -c | head
 ```
 
-This command extracts timestamps, strips brackets, and summarizes unique time entries.
+This prints a summary of when requests were made.
 
-### 3.2 Number of Bits (Bytes Served)
+### 3.2 Total Bytes Sent
 
 ```bash
 awk '{sum += $10} END {print "Total bytes served:", sum}' /var/log/nginx/access.log
 ```
 
-This adds the 10th field (bytes sent) for all requests.
-
-### 3.3 Hits on Unique IPs
+### 3.3 Unique IP Hits
 
 ```bash
 awk '{print $1}' /var/log/nginx/access.log | sort | uniq -c | sort -nr | head
 ```
 
-This will list the IPs with the highest number of hits.
+This shows which IPs hit the server the most.
 
-### 3.4 Bot Crawl Detection
+### 3.4 List of Bots
 
 ```bash
 grep -i "bot\|crawl\|spider" /var/log/nginx/access.log | awk -F\" '{print $6}' | sort | uniq -c | sort -nr | head
 ```
 
-This isolates and counts unique bot User-Agent strings.
+This lists and counts all bot user agents.
 
 ---
 
-## 4. Bot Behavior by Region
+## 4. Region-Based Bot Analysis
 
-### 4.1 Identifying Aggressive and Useful Bots
+### See Which Country Bots Are From
 
-You can analyze bots by reverse DNS lookups or by IP ranges (geo-locating them). Use tools like `geoiplookup` or online services to identify the region.
-
-#### Install geoiplookup (Ubuntu):
+Install geoip tool:
 
 ```bash
 sudo apt update && sudo apt install geoip-bin -y
 ```
 
-#### Usage:
+Then run:
 
 ```bash
 grep -i "bot" /var/log/nginx/access.log | awk '{print $1}' | sort | uniq | while read ip; do echo "$ip - $(geoiplookup $ip)"; done
 ```
 
-This shows which bots come from which countries.
+This tells you the country of the bot's IP.
 
-### 4.2 Region-Based Bot Assessment
+### Bots Common in Different Regions
 
-#### **US & Europe: Useful & Aggressive Bots**
+#### ✅ US & Europe Bots
 
-| Bot        | Usefulness | Aggressiveness | Notes                             |
-| ---------- | ---------- | -------------- | --------------------------------- |
-| Googlebot  | High       | Moderate       | Essential for SEO, from US        |
-| Bingbot    | Medium     | Moderate       | Also US-based, useful for Bing    |
-| AhrefsBot  | Low        | High           | Aggressive; consumes bandwidth    |
-| SemrushBot | Medium     | High           | Aggressive but provides analytics |
-| YandexBot  | Low        | High           | Mostly for Russian audience       |
+| Bot        | Is It Useful? | Is It Aggressive? | Notes                          |
+|------------|---------------|-------------------|--------------------------------|
+| Googlebot  | Yes           | Medium            | Important for SEO              |
+| Bingbot    | Yes           | Medium            | Used by Microsoft's Bing       |
+| AhrefsBot  | No            | High              | Uses lots of bandwidth         |
+| SemrushBot | Maybe         | High              | Used for SEO tools             |
+| YandexBot  | No            | High              | Russian; not useful for most   |
 
-#### **China: Useful Bots**
+#### 🇨🇳 Chinese Bots
 
-| Bot          | Usefulness | Aggressiveness | Notes                                 |
-| ------------ | ---------- | -------------- | ------------------------------------- |
-| Baiduspider  | High       | Moderate       | Important for Chinese search presence |
-| Sogou Spider | Medium     | Moderate       | Used by Sogou search engine           |
-| 360Spider    | Medium     | High           | From Qihoo 360, often aggressive      |
-
-Use the above table to create firewall rules or robots.txt entries accordingly.
+| Bot          | Is It Useful? | Is It Aggressive? | Notes                            |
+|--------------|---------------|-------------------|----------------------------------|
+| Baiduspider  | Yes           | Medium            | Used by Baidu, China's top SE   |
+| Sogou Spider | Maybe         | Medium            | Used by Sogou search            |
+| 360Spider    | Maybe         | High              | Often very aggressive           |
 
 ---
 
-## 5. Recommendations
+## 5. How to Block or Control Bots
 
-### 5.1 Create a Custom robots.txt
+### Use `robots.txt`
+
+Tell bots what to access or block:
 
 ```txt
 User-agent: AhrefsBot
@@ -170,15 +181,15 @@ Disallow: /wp-admin/
 Allow: /wp-admin/admin-ajax.php
 ```
 
-### 5.2 Use Firewall Rules (e.g., UFW or iptables)
+### Block IPs with Firewall
 
 ```bash
 sudo ufw deny from 192.168.1.100 to any
 ```
 
-Or block by country (requires additional tools like `xtables-addons` and MaxMind DB).
+You can also block countries with special tools like `xtables-addons` + MaxMind DB.
 
-### 5.3 Rate Limit Bots in Nginx
+### Rate Limit in Nginx
 
 ```nginx
 limit_req_zone $binary_remote_addr zone=botlimit:10m rate=1r/s;
@@ -192,24 +203,23 @@ server {
 
 ---
 
-## 6. Conclusion
+## 6. Final Notes
 
-This document helps identify and analyze bot traffic on your WordPress site hosted with LEMP. By filtering logs and combining geolocation with bot User-Agent analysis, you can:
+This report helps beginners in cloud or DevOps roles to:
 
-- Recognize useful vs aggressive bots.
-- Fine-tune your server for SEO bots (like Googlebot, Baiduspider).
-- Restrict bandwidth-heavy bots.
-- Regionally optimize your site’s visibility and performance.
+- Understand if bots are visiting their server.
+- Separate helpful bots (like Googlebot) from harmful ones (like Ahrefs).
+- Handle bad bots using simple tools like `robots.txt`, firewalls, or Nginx settings.
 
 ---
 
 ## References
 
-- [https://www.keycdn.com/blog/web-crawlers](https://www.keycdn.com/blog/web-crawlers)
-- [https://moz.com/learn/seo/search-engine-crawlers](https://moz.com/learn/seo/search-engine-crawlers)
-- [https://www.projecthoneypot.org](https://www.projecthoneypot.org)
-- [https://ipinfo.io](https://ipinfo.io)
-- [https://www.cloudflare.com/learning/bots/what-is-bot-management/](https://www.cloudflare.com/learning/bots/what-is-bot-management/)
+- [Web Crawlers Overview – KeyCDN](https://www.keycdn.com/blog/web-crawlers)
+- [SEO Bot Guide – Moz](https://moz.com/learn/seo/search-engine-crawlers)
+- [Project Honeypot](https://www.projecthoneypot.org)
+- [IP Lookup – ipinfo.io](https://ipinfo.io)
+- [Cloudflare Bot Management](https://www.cloudflare.com/learning/bots/what-is-bot-management/)
 
 ---
 
