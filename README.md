@@ -1,6 +1,9 @@
 # Bot Traffic Analysis on LEMP WordPress EC2 Server
 
+Note that I'm documenting my research while working on EC2 by AWS. You can use this documentation and perform on any server of your choice as EC2 is not the limitation.
+
 ## Introduction
+
 
 This guide explains how to check and understand bot traffic on a WordPress website running on an EC2 server with the LEMP stack (Linux, Nginx, MySQL, PHP). We'll:
 
