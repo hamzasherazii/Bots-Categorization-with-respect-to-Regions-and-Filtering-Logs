@@ -4,8 +4,7 @@ Note that I'm documenting my research while working on EC2 by AWS. You can use t
 
 ## Introduction
 
-
-This guide explains how to check and understand bot traffic on a WordPress website running on an EC2 server with the LEMP stack (Linux, Nginx, MySQL, PHP). We'll:
+This documentation explains how to check and understand bot traffic on a WordPress website running on an EC2 server with the LEMP stack (Linux, Nginx, MySQL, PHP). We'll:
 
 1. See if bots are visiting your site.
 2. Collect and format log information.
@@ -21,7 +20,7 @@ flowchart TD
     A[Start: Analyze Bot Traffic] --> B[Connect to EC2 Instance]
     B --> C[Open Nginx Access Logs]
     C --> D[Look for Bot User-Agents]
-    D --> E[Extract Data: Time, Bytes, IPs, Bots]
+    D --> E[Extract Data: Time, Bits, IPs, Bots]
     E --> F[Check Which Regions Bots Come From]
     F --> G1[US & Europe Bots]
     F --> G2[China Bots]
@@ -84,7 +83,7 @@ This looks for common words in bot user agents like "bot", "crawl", or "spider".
 
 - IP Address: `66.249.66.1`
 - Date/Time: `18/Jul/2025:10:20:50`
-- Bytes Sent: `1024`
+- Bits Sent: `8192` (was 1024 bytes × 8)
 - User Agent: `Googlebot`
 
 ---
@@ -99,11 +98,13 @@ awk '{print $4}' /var/log/nginx/access.log | tr -d '[' | sort | uniq -c | head
 
 This prints a summary of when requests were made.
 
-### 3.2 Total Bytes Sent
+### 3.2 Total Bits Sent
 
 ```bash
-awk '{sum += $10} END {print "Total bytes served:", sum}' /var/log/nginx/access.log
+awk '{sum += $10} END {print "Total bits served:", sum * 8}' /var/log/nginx/access.log
 ```
+
+> Note: `$10` contains the number of bytes, so we multiply it by 8 to convert to bits.
 
 ### 3.3 Unique IP Hits
 
@@ -149,7 +150,7 @@ This tells you the country of the bot's IP.
 |------------|---------------|-------------------|--------------------------------|
 | Googlebot  | Yes           | Medium            | Important for SEO              |
 | Bingbot    | Yes           | Medium            | Used by Microsoft's Bing       |
-| AhrefsBot  | No            | High              | Uses lots of bandwidth         |
+| AhrefsBot  | No            | High              | Uses lots of bandwidth (bits)  |
 | SemrushBot | Maybe         | High              | Used for SEO tools             |
 | YandexBot  | No            | High              | Russian; not useful for most   |
 
@@ -213,6 +214,7 @@ This report helps beginners in cloud or DevOps roles to:
 - Understand if bots are visiting their server.
 - Separate helpful bots (like Googlebot) from harmful ones (like Ahrefs).
 - Handle bad bots using simple tools like `robots.txt`, firewalls, or Nginx settings.
+- Be aware of bandwidth usage in **bits**, not bytes, for better accuracy when estimating network usage.
 
 ---
 
@@ -223,6 +225,3 @@ This report helps beginners in cloud or DevOps roles to:
 - [Project Honeypot](https://www.projecthoneypot.org)
 - [IP Lookup – ipinfo.io](https://ipinfo.io)
 - [Cloudflare Bot Management](https://www.cloudflare.com/learning/bots/what-is-bot-management/)
-
----
-
